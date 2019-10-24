@@ -1,63 +1,72 @@
 #include <stdio.h> 
 #include <stdlib.h> 
-# include <string.h>
+#include <string.h>
+#define BUFFERSIZE 1024
+#define ARGSIZE 5
+typedef struct session_info SessInfo;
 
-#define LSH_RL_BUFSIZE 1024
-// #define EXIT_FAILURE -1
-// #define EXIT_SUCCESS 0
+struct session_info
+{
+  char *user;
+};
 
 char *read_line_shell(void)
 {
-  int bufsize = LSH_RL_BUFSIZE;
-  int position = 0;
-  char *buffer = malloc(sizeof(char) * bufsize);
-  int c;
+  char *text = calloc(1,1), buffer[BUFFERSIZE];
+  fgets(buffer, BUFFERSIZE , stdin);
+  char *comando = strtok(buffer, "\n");
+  return comando;
+}
 
-  while (1) {
-    // Read a character
-    c = getchar();
-
-    // If we hit EOF, replace it with a null character and return.
-    if (c == EOF || c == '\n') {
-      buffer[position] = '\0';
-      return buffer;
-    } else {
-      buffer[position] = c;
-    }
-    position++;
+// char **split_line_shell(char *linha_de_comando)
+void split_line_shell(char *linha_de_comando)
+{
+  char *comando = strtok(linha_de_comando, " # ");
+  char **todos_comandos;
+  int i = 0;
+  while(comando!=NULL)
+  {
+    printf("|%s|", comando);
+    comando = strtok(NULL, " # ");
+    i++;
   }
 }
 
-void loop_shell(void)
+void loop_shell(SessInfo* info)
 {
   char *line;
   char **args;
   int status = 1;
-  char* username = getenv("USER");
+  char *username = info->user;
 
   do {
-    printf("%s@gsh> ", username);
+    printf("%s@gsh>", username);
     line = read_line_shell();
-    printf("%s", line);
-    // args = lsh_split_line(line);
+    printf("\nrecebeu : |%s|\n", line);
+    split_line_shell(line);
     // status = lsh_execute(args);
-
-    free(line);
-    free(args);
   } while (status);
 }
 
-void init_shell() 
+SessInfo* init_shell() 
 { 
-    // asd
+    char* username = getenv("USER");
+    SessInfo* sess = (SessInfo*)malloc(sizeof(SessInfo));
+    sess->user = (char*)malloc((strlen(username)+1) * sizeof(char));
+    strcpy(sess->user, username);
+    
+
+    return sess;
+
 } 
 
 int main(int argc, char **argv)
 {
-  // Load config files, if any.
+  
+  SessInfo* sess = init_shell();
 
   // Run command loop.
-  loop_shell();
+  loop_shell(sess);
 
   // Perform any shutdown/cleanup.
 
