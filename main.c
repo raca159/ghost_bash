@@ -4,6 +4,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <sys/types.h>
+#include <signal.h>
 
 #define BUFFERSIZE 1024
 #define MAXARGS 5
@@ -54,35 +56,46 @@ int execute(char **command)
 
   pid_t pid, duplicated, wpid;
   int status;
+  pid_t father = getpid();
 
-  pid = fork();
-  if (pid == 0)
+  if (father == getpid())
   {
-    if (rand() & 1)
-    { // creating ghosts
-      printf("Duplicate\n");
+    pid = fork();
+  }
+  if (father == getpid())
+  {
+    if (rand() & 1) // creating ghosts
+    {
+      printf("Wild Ghost Appeared!\n"); // pokemon reference
       duplicated = fork();
     }
-    // Child process
+  }
+  if (pid == 0) // Child process
+  {
+
     if (execvp(command[0], command) == -1)
     {
       perror("Invalid command");
       exit(EXIT_FAILURE);
     }
+    exit(EXIT_SUCCESS);
   }
-  else if (pid < 0)
+  else if (pid < 0) // Error forking
   {
-    // Error forking
+
     perror("Something wrong with the children");
   }
-  else
+  else // Parent process
   {
-    // Parent process
+
     do
     {
       wpid = waitpid(pid, &status, WUNTRACED);
     } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+    // printf("I can die now.\n");
   }
+
+  return EXIT_SUCCESS;
 }
 
 int execute_cmds(char ***comandos)
@@ -184,8 +197,8 @@ void loop_shell(SessInfo *info)
 
 int main(int argc, char **argv)
 {
-
   SessInfo *sess = init_shell();
+  signal(SIGTSTP,SIG_IGN);
 
   // Run command loop.
   loop_shell(sess);
