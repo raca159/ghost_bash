@@ -12,6 +12,7 @@
 #define MAXARGSIZE 100
 typedef struct session_info SessInfo;
 typedef struct commands_pack CommandsGroup;
+static volatile int keepRunning = 1;
 
 struct commands_pack
 {
@@ -29,8 +30,8 @@ struct session_info
 
 SessInfo *init_shell()
 {
-  char *username = getenv("USER");
-  char *computer = getenv("NAME");
+  char *username = "";//getenv("USER");
+  char *computer = "";//getenv("NAME");
   SessInfo *sess = (SessInfo *)malloc(sizeof(SessInfo));
   sess->user = (char *)malloc((strlen(username) + 1) * sizeof(char));
   sess->computer = (char *)malloc((strlen(computer) + 1) * sizeof(char));
@@ -49,6 +50,22 @@ CommandsGroup *init_group()
   line->real_pids = NULL;
 
   return line;
+}
+
+void CHandler(int dummy) {
+  printf("Do you want to keep going?\n(Y)es or (N)o?\n");
+  char option;
+  scanf("%c", &option);
+  // if(option == "y")
+  // {
+  //   keepRunning = 1;
+  // }
+  // else
+  // {
+  //   keepRunning = 0;
+  // }
+  keepRunning = 0;
+  exit(EXIT_SUCCESS);
 }
 
 int execute(char **command)
@@ -192,13 +209,14 @@ void loop_shell(SessInfo *info)
     // printf("Recebeu: |%s|\n", linha);
     todos_comandos = list_cmds(linha);
     execute_cmds(todos_comandos);
-  } while (status == EXIT_SUCCESS);
+  } while (status == EXIT_SUCCESS && keepRunning==1);
 }
 
 int main(int argc, char **argv)
 {
   SessInfo *sess = init_shell();
-  signal(SIGTSTP,SIG_IGN);
+  signal(SIGTSTP,SIG_IGN); // get Crtl Z
+  signal(SIGINT, CHandler); // get Crtl C
 
   // Run command loop.
   loop_shell(sess);
