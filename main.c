@@ -14,62 +14,16 @@ typedef struct session_info SessInfo;
 typedef struct commands_pack CommandsGroup;
 static volatile int keepRunning = 1;
 
-struct commands_pack
+void init_shell()
 {
-  char ***commands;      // lista de comandos
-  pid_t **real_pids;     // pid dos comandos da linha
-  pid_t **ethereal_pids; // pid dos fantasmas da linha
-};
 
-struct session_info
-{
-  char *user;
-  char *computer;
-  CommandsGroup *lines_received;
-};
+  printf("Welcome\n");
 
-SessInfo *init_shell()
-{
-  char *username = "";//getenv("USER");
-  char *computer = "";//getenv("NAME");
-  SessInfo *sess = (SessInfo *)malloc(sizeof(SessInfo));
-  sess->user = (char *)malloc((strlen(username) + 1) * sizeof(char));
-  sess->computer = (char *)malloc((strlen(computer) + 1) * sizeof(char));
-  strcpy(sess->user, username);
-  strcpy(sess->computer, computer);
-  sess->lines_received = NULL;
-
-  return sess;
-}
-
-CommandsGroup *init_group()
-{
-  CommandsGroup *line = (CommandsGroup *)malloc(sizeof(CommandsGroup));
-  line->commands = NULL;
-  line->ethereal_pids = NULL;
-  line->real_pids = NULL;
-
-  return line;
-}
-
-void CHandler(int dummy) {
-  printf("Do you want to keep going?\n(Y)es or (N)o?\n");
-  char option;
-  scanf("%c", &option);
-  // if(option == "y")
-  // {
-  //   keepRunning = 1;
-  // }
-  // else
-  // {
-  //   keepRunning = 0;
-  // }
-  keepRunning = 0;
-  exit(EXIT_SUCCESS);
 }
 
 int execute(char **command)
 {
+  printf("\n#####\n");
 
   pid_t pid, duplicated, wpid;
   int status;
@@ -87,9 +41,9 @@ int execute(char **command)
       duplicated = fork();
     }
   }
-  if (pid == 0) // Child process
+  if (pid == getpid() || duplicated == getpid()) // Child process
   {
-
+    printf("Filho/Ghost |%d| |%d| \n", pid, duplicated);
     if (execvp(command[0], command) == -1)
     {
       perror("Invalid command");
@@ -97,19 +51,13 @@ int execute(char **command)
     }
     exit(EXIT_SUCCESS);
   }
-  else if (pid < 0) // Error forking
-  {
-
-    perror("Something wrong with the children");
-  }
   else // Parent process
   {
-
+    printf("Pai |%d|\n", father);
     do
     {
       wpid = waitpid(pid, &status, WUNTRACED);
     } while (!WIFEXITED(status) && !WIFSIGNALED(status));
-    // printf("I can die now.\n");
   }
 
   return EXIT_SUCCESS;
@@ -194,32 +142,44 @@ char ***list_cmds(char *linha_de_comando)
   return comandos_e_argumentos;
 }
 
-void loop_shell(SessInfo *info)
+void loop_shell()
 {
   char *linha;
   char ***todos_comandos;
-  char *username = info->user;
-  char *computer = info->computer;
   int status = EXIT_SUCCESS;
 
+  int counter = 0;
   do
   {
-    printf("%s@%s:gsh>", username, computer);
+    printf("gsh>");
     linha = read_line_shell();
     // printf("Recebeu: |%s|\n", linha);
     todos_comandos = list_cmds(linha);
     execute_cmds(todos_comandos);
-  } while (status == EXIT_SUCCESS && keepRunning==1);
+    counter++;
+  } while (status == EXIT_SUCCESS && counter <10);
 }
+
+
+void CHandler(int sig) {
+  printf("Do you want to exit?\n(y)es or (n)o?\n");
+  char option[10];
+  scanf("%s", option);
+  if(strcmp(option,"y")==0 || strcmp(option,"yes")==0){
+    keepRunning = 0;
+    exit(SIGTSTP);
+  }
+}
+
 
 int main(int argc, char **argv)
 {
-  SessInfo *sess = init_shell();
-  signal(SIGTSTP,SIG_IGN); // get Crtl Z
+  init_shell();
+  signal(SIGTSTP, SIG_IGN); // get Crtl Z
   signal(SIGINT, CHandler); // get Crtl C
 
   // Run command loop.
-  loop_shell(sess);
+  loop_shell();
 
   // Perform any shutdown/cleanup.
 
