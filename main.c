@@ -10,60 +10,74 @@
 #define BUFFERSIZE 1024
 #define MAXARGS 5
 #define MAXARGSIZE 100
-typedef struct session_info SessInfo;
-typedef struct commands_pack CommandsGroup;
-static volatile int keepRunning = 1;
+static volatile int process_counter = 0;
 
-void init_shell()
-{
-
-  printf("Welcome\n");
+void CHandler(int sig) {
+  if(process_counter==0)
+  {
+    printf("I have nothing to live for anyway, no child, no nothing.\n");
+    exit(EXIT_SUCCESS);
+  }
+  else
+  {
+  printf("I have children pleeease, are you sure you want to exit?\n(y)es or (n)o?\n");
+  char buffer[BUFFERSIZE];
+  fgets (buffer, BUFFERSIZE, stdin);
+  char *option = strtok(buffer, "\n");
+  // printf("Option : |%s|\n", option);
+  if(strcmp(option,"y")==0 || strcmp(option,"yes")==0){
+    //exit(SIGTSTP);
+    exit(EXIT_SUCCESS);
+    }
+  }
 
 }
 
-int execute(char **command)
+
+void ZHandler(int sig) {
+  printf("Suspending everything.\n");
+}
+
+
+void execute(char **command)
 {
-  printf("\n#####\n");
-
-  pid_t pid, duplicated, wpid;
+  pid_t pid, wpid;
   int status;
-  pid_t father = getpid();
 
-  if (father == getpid())
+  pid = fork () ;
+  if( pid < 0)
   {
-    pid = fork();
+    /* falha do fork */
+    exit(EXIT_FAILURE);
   }
-  if (father == getpid())
+  else if ( pid == 0)
   {
+    /* codigo do  filho*/
     if (rand() & 1) // creating ghosts
     {
       printf("Wild Ghost Appeared!\n"); // pokemon reference
-      duplicated = fork();
+      fork();
     }
-  }
-  if (pid == getpid() || duplicated == getpid()) // Child process
-  {
-    printf("Filho/Ghost |%d| |%d| \n", pid, duplicated);
+    process_counter++;
     if (execvp(command[0], command) == -1)
     {
       perror("Invalid command");
-      exit(EXIT_FAILURE);
     }
-    exit(EXIT_SUCCESS);
   }
-  else // Parent process
+  else // pid > 0
   {
-    printf("Pai |%d|\n", father);
-    do
-    {
-      wpid = waitpid(pid, &status, WUNTRACED);
-    } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+    /* codigo do pai */
+    // do
+    // {
+    //   wpid = waitpid(pid, &status, WUNTRACED);
+    // } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+    // wait(NULL);
+    process_counter++;
   }
-
-  return EXIT_SUCCESS;
+  return;
 }
 
-int execute_cmds(char ***comandos)
+void execute_cmds(char ***comandos)
 {
   int num_cmd = 0;
   char **cmd = comandos[num_cmd];
@@ -71,14 +85,14 @@ int execute_cmds(char ***comandos)
   {
     if (cmd == NULL || cmd[0] == NULL) // empty line
     {
-      return EXIT_SUCCESS;
+      return;
     }
     else
     {
       if (execvp(cmd[0], cmd) == -1)
       {
         perror("Invalid command");
-        exit(EXIT_FAILURE);
+        return;
       }
     }
   }
@@ -87,18 +101,18 @@ int execute_cmds(char ***comandos)
     while (cmd != NULL)
     {
       execute(cmd);
+      // printf("%d",num_cmd);
       num_cmd++;
       cmd = comandos[num_cmd];
     }
   }
-  return EXIT_SUCCESS;
 }
 
 char *read_line_shell(void)
 {
-  char *text = calloc(1, 1), buffer[BUFFERSIZE];
   char *comando;
-  fgets(buffer, BUFFERSIZE, stdin);
+  char buffer[BUFFERSIZE];
+  fgets (buffer, BUFFERSIZE, stdin);
   if (!strcmp(buffer, "\n") || !strcmp(buffer, "\r\n"))
   {
     comando = "";
@@ -151,37 +165,33 @@ void loop_shell()
   int counter = 0;
   do
   {
+
     printf("gsh>");
     linha = read_line_shell();
     // printf("Recebeu: |%s|\n", linha);
     todos_comandos = list_cmds(linha);
     execute_cmds(todos_comandos);
     counter++;
-  } while (status == EXIT_SUCCESS && counter <10);
+  } while (counter <25);
 }
 
 
-void CHandler(int sig) {
-  printf("Do you want to exit?\n(y)es or (n)o?\n");
-  char option[10];
-  scanf("%s", option);
-  if(strcmp(option,"y")==0 || strcmp(option,"yes")==0){
-    keepRunning = 0;
-    exit(SIGTSTP);
-  }
-}
+void init_shell()
+{
 
+  // printf("Welcome\n");
+  signal(SIGTSTP, ZHandler); // get Crtl Z
+  signal(SIGINT, CHandler); // get Crtl C
+
+}
 
 int main(int argc, char **argv)
 {
+  // Initialize shell dependencies
   init_shell();
-  signal(SIGTSTP, SIG_IGN); // get Crtl Z
-  signal(SIGINT, CHandler); // get Crtl C
 
   // Run command loop.
   loop_shell();
-
-  // Perform any shutdown/cleanup.
 
   return EXIT_SUCCESS;
 }
