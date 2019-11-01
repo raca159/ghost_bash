@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "string.h": "c",
-        "unistd.h": "c"
+        "unistd.h": "c",
+        "lines_struct.h": "c",
+        "stdlib.h": "c"
     }
 }
