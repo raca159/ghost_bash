@@ -1,3 +1,31 @@
+/*
+* Nome: Rafael Costa de Almeida
+* Trabalho: Ghost Shell
+
+* Estrutura:
+  -> Utilizei uma TAD com sentinela para guardar todos os grupos de comandos executados
+  -> Cada linnha esta em um grupo separado. Para poder criar um novo grupo para cada linha, caso
+  o usuario de mais de um comando, quem executa cada comando e um fork(), porem, o processo que lança
+  os forks em si, é um fork(). Desta forma, se cria um grupo novo para cada linha
+  -> A idéia geral é: na main, inicialmente rodamos uma funcao para iniciar dependencias da shell,
+  no caso isso seria os tratadores de sinais para executar o comportamento nao default de Crtl Z e Ctrl C.
+  Depois disso, entramos em uma funcao de loop onde esperamos a entrada do usuario, depois separamos essa entrada
+  através dos tokens "#" e depois separamos cada substring por " " para separar comando de argumentos, para isso, utiliza-se
+  uma variavel char*** para armazenar todo o conteudo da linha separada ja em comandos e argumentos.
+  Depois disso, passamos para uma funcao com o objetivo de executar cada comando na variavel char***.
+  -> Durante a execucao do comando, através de rand() temos 50% de chance de termos um ghost gerado, independente se
+  background ou foreground.
+  -> Apos o fork criar outros forks, um para cada comando, seu PID é adicionado ao TAD de linhas criado como variavel global e
+  que foi iniciado na init_shell().
+  -> Para os comandos especiais mywait, clean&die e os tratamentos de sinais, utiliza-se a TAD para ir de elemento em elemento
+  acessando o Group PID ID dos forks de cada linha e lançando o apropriado sinal para cada grupo, efetivamente controlando
+  todos os processos associados a session criada.
+
+* OBS: Apenas para clarificar, me atrasei na resolucao pois acabei fazendo sozinho
+* OBS1: Coloquei uma mensagem para aparecer quando um ghost e criado, apenas para checar se esta ok o processo
+* OBS2: Fiz um repositorio no GitHub para fazer o trabalho, portanto todo o historico de desenvolvimento se esta la
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,11 +37,13 @@
 #include "lines_struct.c"
 
 #define BUFFERSIZE 1024
-#define MAXARGS 5
+#define MAXCOMMANDS 5
+#define MAXARGS 3
 #define MAXARGSIZE 100
 #define LINESNUM 100
 pid_t session_ghost;
 TListalinha* linhas;
+
 
 /*
 * Funcao para matar todas as linhas executadas 
@@ -36,6 +66,7 @@ void send_signal_session(int signal)
   send_signal_lines(signal);
   Liberalinhas(linhas);
   kill(-1*getpid(), signal);
+  exit(EXIT_SUCCESS);
 }
 
 
@@ -56,6 +87,7 @@ void CHandler(int sig)
       printf("If i have to die, i'll take all my family with me!\n");
       send_signal_lines(SIGINT);
       kill(-1*getpid(), SIGKILL);
+      exit(EXIT_SUCCESS);
     }
     else
     {
@@ -66,6 +98,7 @@ void CHandler(int sig)
   {
     printf("I have no family so i have no reason to live anyway!\n");
     kill(-1*getpid(), SIGKILL);
+    exit(EXIT_SUCCESS);
   }
 }
 
@@ -134,7 +167,24 @@ void execute_cmds(char ***comandos)
   // se o proximo ponteiro no array for NULL quer dizer que temos um comando apenas
   if(comandos[1]==NULL) //foreground
   {
-    execute(cmd);
+    // implementando funcoes da gsh
+    if(strcmp(cmd[0], "mywait")==0 || strcmp(cmd[0], "clean&die")==0)
+    {
+      // liberando todos os processos filhos da bash antes de matar ela
+      printf("Killing all descendents...");
+      send_signal_lines(SIGKILL);
+      printf("Done.\n");
+      if (strcmp(cmd[0], "clean&die")==0)
+      {
+        // caso o comando seja clean&die, matar a shell depois de liberar todos
+        printf("I may rest in peace now.\n");
+        exit(EXIT_SUCCESS);
+      }
+    }
+    else
+    {
+     execute(cmd); 
+    }
   }
   else //background
   {
@@ -232,7 +282,7 @@ char ***list_cmds(char *linha_de_comando)
 
   // inicialmente se cria char*** para guardar os ponteiros que representam cada comando e seus argumentos
   char ***comandos_e_argumentos;
-  comandos_e_argumentos = malloc(sizeof(char **) * MAXARGS * MAXARGSIZE);
+  comandos_e_argumentos = malloc(sizeof(char **) * MAXCOMMANDS * MAXARGSIZE);
   int comando_counter = 0;
 
   // quebra linha entre tokens '#' que representam comandos
@@ -240,14 +290,14 @@ char ***list_cmds(char *linha_de_comando)
   {
     // aloca um char** como buffer para manter comando e argumentos
     char **todos_comandos;
-    todos_comandos = malloc(sizeof(char *) * MAXARGS);
+    todos_comandos = malloc(sizeof(char *) * MAXCOMMANDS);
     int argument_counter = 0;
 
     // quebra argumentos em " "
     for (char *argument = strsep(&comando, " "); argument != NULL; argument = strsep(&comando, " "))
     {
       // se o argumento quebrado for realmente um argumento, adiciona ele no char**
-      if (strcmp(argument, " ") != 0 && strcmp(argument, "") != 0)
+      if (strcmp(argument, " ") != 0 && strcmp(argument, "") != 0 && argument_counter<MAXARGS)
       {
         // printf("|%s|", argument);
         todos_comandos[argument_counter] = argument;
@@ -255,8 +305,8 @@ char ***list_cmds(char *linha_de_comando)
       }
     }
     // printf("\n");
-    //se existem comandos/argumentos, adiciona-os a lista de comandos e argumentos
-    if(argument_counter!=0)
+    //se existem comandos/argumentos, adiciona-os a lista de comandos
+    if(argument_counter!=0 && comando_counter<MAXCOMMANDS)
     {
       // printf("Comando -> |%s| -> ", comando);
       comandos_e_argumentos[comando_counter] = todos_comandos;
